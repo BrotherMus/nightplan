@@ -99,12 +99,79 @@ async function capture(cdp, url, out, logErrors) {
   await cdp.send('Target.closeTarget', { targetId: result.targetId });
 }
 
+// Plays the real game with key events: title, plan, then a scripted walk; prints state and errors.
+async function playtest(cdp, url) {
+  const { result } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  const { result: att } = await cdp.send('Target.attachToTarget', { targetId: result.targetId, flatten: true });
+  const s = att.sessionId;
+  const errors = [];
+  cdp.listeners.push((m) => {
+    if (m.sessionId === s && m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.exception?.description);
+  });
+  await cdp.send('Runtime.enable', {}, s);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, s);
+  await cdp.send('Page.navigate', { url }, s);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const key = async (code, ms = 80) => {
+    const k = code.replace('Key', '').toLowerCase();
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', code, key: code === 'Enter' ? 'Enter' : k, windowsVirtualKeyCode: code === 'Enter' ? 13 : k.toUpperCase().charCodeAt(0) }, s);
+    await wait(ms);
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: code === 'Enter' ? 'Enter' : k }, s);
+  };
+  const state = async () => (await cdp.send('Runtime.evaluate', {
+    expression: 'JSON.stringify((({screen, world}) => world ? {screen, x: +world.thief.x.toFixed(2), y: +world.thief.y.toFixed(2), alarm: Math.round(world.alarm), guards: world.guards.map(g => g.state + ":" + g.x.toFixed(1) + "," + g.y.toFixed(1)), caught: !!world.caughtBy} : {screen})(window.__nightplan))',
+  }, s)).result.result.value;
+  await wait(800);
+  await key('Enter');
+  await wait(200);
+  await key('Enter');
+  await wait(300);
+  console.log('start', await state());
+  for (const [code, ms] of [['KeyS', 900], ['KeyD', 1600], ['KeyS', 1200], ['KeyD', 2500]]) {
+    await key(code, ms);
+    console.log(code, ms, await state());
+  }
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 700, y: 400 }, s);
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: 700, y: 400, button: 'left', clickCount: 1 }, s);
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 700, y: 400, button: 'left', clickCount: 1 }, s);
+  await wait(6000);
+  console.log('after 6 s idle', await state());
+  const run = async (js) => (await cdp.send('Runtime.evaluate', { expression: js }, s)).result.result?.value;
+  // Crack the target: stand beside it and hold E.
+  await run('(() => { const w = window.__nightplan.world; w.guards.forEach(g => { g.x = 2.5; g.y = 15.5; g.route = [{x: 2.5, y: 15.5}]; g.path = []; }); w.thief.x = w.map.target.x - 0.6; w.thief.y = w.map.target.y; })()');
+  await key('KeyE', 4200);
+  console.log('after holding E at target', await run('JSON.stringify({carrying: window.__nightplan.world.thief.carrying, take: window.__nightplan.world.take})'));
+  await run('(() => { const w = window.__nightplan.world; w.thief.x = w.map.exit.x + 1.2; w.thief.y = w.map.exit.y; })()');
+  await key('KeyA', 700);
+  console.log('after walking to van', await run('JSON.stringify({screen: window.__nightplan.screen, total: window.__nightplan.score && window.__nightplan.score.total})'));
+  // Caught: a fresh heist with the thief standing in front of a guard in the light.
+  await key('Enter');
+  await wait(200);
+  await key('Enter');
+  await wait(200);
+  await run('(() => { const w = window.__nightplan.world; const g = w.guards[0]; g.route = [{x: g.x, y: g.y}]; g.path = []; w.thief.x = g.x + 2; w.thief.y = g.y; g.facing = 0; })()');
+  await wait(3500);
+  console.log('standing in a guard cone', await state());
+  await wait(500);
+  if (process.argv.includes('--snap')) {
+    const { result: shot } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 80 }, s);
+    writeFileSync(join(tmpdir(), 'nightplan-playtest.jpg'), Buffer.from(shot.data, 'base64'));
+    console.log('snap', join(tmpdir(), 'nightplan-playtest.jpg'));
+  }
+  console.log('errors', errors.length ? errors : 'none');
+  await cdp.send('Target.closeTarget', { targetId: result.targetId });
+}
+
 const server = await serveGame();
 const base = `http://127.0.0.1:${server.address().port}/`;
 const { chrome, wsUrl } = await launchChrome();
 const cdp = await connect(wsUrl);
 try {
   if (process.argv.includes('--probe')) await capture(cdp, base, null, true);
+  if (process.argv.includes('--playtest')) {
+    await playtest(cdp, base);
+    process.exit(0);
+  }
   const shots = JSON.parse(readFileSync(join(root, 'shots.json'), 'utf8'));
   mkdirSync(join(root, 'screenshots'), { recursive: true });
   for (const s of shots) await capture(cdp, base + s.query, join(root, 'screenshots', s.name), false);

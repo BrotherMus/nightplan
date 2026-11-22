@@ -140,6 +140,7 @@ function draw() {
 }
 
 bindInput(canvas);
+window.__nightplan = app; // read by tools/shots.mjs --playtest
 const shot = new URLSearchParams(location.search).get('shot');
 if (shot && stageShot(app, shot)) {
   app.t = 1.2;
