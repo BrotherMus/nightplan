@@ -1,0 +1,5 @@
+html, body { margin: 0; background: #050f1f; color: #e2f4ff; font-family: "Courier New", monospace; }
+#stage { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+#game { width: min(100vw, 160vh); height: auto; aspect-ratio: 1280 / 800; display: block; outline: none; box-shadow: 0 0 40px rgba(110, 200, 255, 0.15); }
+#about { max-width: 960px; margin: 24px auto 48px; padding: 0 16px; line-height: 1.5; color: #9fc8e8; }
+#about h1 { color: #e2f4ff; font-size: 20px; }
