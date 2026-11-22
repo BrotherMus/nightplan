@@ -7,6 +7,7 @@ import { createGuard, updateGuard } from './guards.js';
 import { createCamera, updateCamera } from './cameras.js';
 import { updateAlarm } from './alarm.js';
 import { makeNoise, updateEffects } from './tools.js';
+import { createLaser, updateLaser } from './lasers.js';
 
 export function createHeist(levelIndex, plan) {
   const level = LEVELS[levelIndex];
@@ -17,6 +18,7 @@ export function createHeist(levelIndex, plan) {
     thief: createThief(spawn),
     guards: level.guards.map(createGuard),
     cameras: level.cameras.map(createCamera),
+    lasers: (level.lasers || []).map(createLaser),
     kit: { ...plan.kit }, spent: plan.spent,
     alarm: 0, alarmFloor: 0, lockdown: 0, radioTimer: 0, alarmPressure: false,
     smokes: [], noises: [], sfx: [], banner: { text: `ENTER BY THE ${level.entries[plan.entry]}`, t: 2.5 },
@@ -89,6 +91,7 @@ export function updateHeist(world, input, dt) {
   workOnJob(world, holding, dt);
   world.guards.forEach((g) => updateGuard(g, world, dt));
   world.cameras.forEach((c) => updateCamera(c, world, dt));
+  world.lasers.forEach((l) => updateLaser(l, world, dt));
   updateAlarm(world, dt);
   updateEffects(world, dt);
   if (world.banner) {

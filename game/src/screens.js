@@ -3,7 +3,8 @@ import { VIEW_W, VIEW_H, INK, TOOLS, BUDGET, TILE, HUD_H } from './config.js';
 import { LEVELS } from './levels.js';
 import { parseFloorPlan } from './map.js';
 import { createGuard } from './guards.js';
-import { drawPaper, drawFloorPlan, drawRoomLabels, drawPatrolRoutes, drawExitAndEntries, drawLoot, drawTrail, sx, sy } from './render.js';
+import { drawPaper, drawFloorPlan, drawRoomLabels, drawPatrolRoutes, drawExitAndEntries, drawLoot, drawLasers, drawTrail, sx, sy } from './render.js';
+import { createLaser } from './lasers.js';
 
 const money = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US')}`;
 
@@ -72,6 +73,7 @@ export function drawPlan(ctx, plan, t) {
   drawPatrolRoutes(ctx, level.guards.map(createGuard), 0.75);
   drawExitAndEntries(ctx, map, level, plan.entry);
   drawLoot(ctx, map, t);
+  drawLasers(ctx, (level.lasers || []).map(createLaser));
   level.cameras.forEach((c) => {
     ctx.fillStyle = 'rgba(255,154,31,0.22)';
     ctx.beginPath();
@@ -97,6 +99,7 @@ export function drawPlan(ctx, plan, t) {
     ['GREEN HATCH', 'SHADOW: GUARDS NOTICE YOU 4x SLOWER', INK.safe],
     ['TWO WAYS IN', 'PICK THE VAULT LOCK UNDER WATCH, OR CRAWL THE VENT', INK.vent],
     ['GOLD', 'THE TARGET AND CASH BUNDLES: CARRY THEM TO THE VAN', INK.loot],
+    ['MAGENTA', 'LASERS SWITCH ON AND OFF: CROSS IN THE GAP', INK.laser],
   ];
   notes.forEach(([k, v, c], i) => {
     text(ctx, k, 14, 570 + i * 30, 15, c, 'left');
@@ -133,7 +136,8 @@ export function drawPlan(ctx, plan, t) {
     text(ctx, String(plan.kit[tool.id]), 1187, y + 17, 22, INK.loot);
   });
   text(ctx, 'EVERY DOLLAR SPENT COMES OUT OF THE TAKE', 1058, 560, 13, INK.cameraCone);
-  text(ctx, `GUARDS ${level.guards.length} · CAMERAS ${level.cameras.length} · PAR ${level.par}s`, 1058, 595, 15, INK.text);
+  const lasers = (level.lasers || []).length;
+  text(ctx, `GUARDS ${level.guards.length} · CAMERAS ${level.cameras.length} · LASERS ${lasers} · PAR ${level.par}s`, 1058, 595, 15, INK.text);
   ctx.fillStyle = 'rgba(63,224,140,0.18)';
   ctx.fillRect(870, 640, 380, 60);
   ctx.strokeStyle = INK.safe;

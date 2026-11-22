@@ -24,6 +24,7 @@ export const INK = {
   vent: '#6ff0d0',
   thief: '#ffffff',
   alarm: '#ff2d55',
+  laser: '#ff2bd6', // tripwires: magenta, so they never read as a cone
 };
 
 export const THIEF = {
@@ -62,5 +63,5 @@ export const BUDGET = 900;
 export const TOOLS = [
   { id: 'coin', key: '1', name: 'RATTLE COIN', cost: 40, blurb: 'Thrown noise. Guards walk to where it lands.' },
   { id: 'smoke', key: '2', name: 'SMOKE PUCK', cost: 180, blurb: 'A cloud no cone can see through, 7 s.' },
-  { id: 'emp', key: '3', name: 'EMP TAG', cost: 260, blurb: 'Blinds one camera for 9 s.' },
+  { id: 'emp', key: '3', name: 'EMP TAG', cost: 260, blurb: 'Blinds a camera or laser for 9 s.' },
 ];

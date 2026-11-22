@@ -90,6 +90,7 @@ const LEGEND = [
   { kind: 'diamond', color: INK.loot, text: 'LOOT' },
   { kind: 'box', color: INK.vent, text: 'VENT' },
   { kind: 'bar', color: INK.cameraCone, text: 'LOCK' },
+  { kind: 'bar', color: INK.laser, text: 'LASER' },
 ];
 
 export function drawLegend(ctx) {

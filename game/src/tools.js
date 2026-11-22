@@ -1,6 +1,7 @@
 // Tools bought on the plan screen and thrown with the mouse: coin, smoke puck, EMP tag.
 import { TOOLS } from './config.js';
 import { hearNoise } from './guards.js';
+import { distanceToBeam } from './lasers.js';
 
 export const THROW_RANGE = 7;
 
@@ -30,12 +31,16 @@ export function useTool(world, id, aim) {
   const at = throwTarget(world, aim);
   if (id === 'emp') {
     const cam = world.cameras.find((c) => Math.hypot(c.x - at.x, c.y - at.y) < 1.8);
-    if (!cam) {
-      world.banner = { text: 'EMP: AIM AT A CAMERA', t: 1.2 };
+    const laser = world.lasers.find((l) => distanceToBeam(l, at.x, at.y) < 1.2);
+    if (!cam && !laser) {
+      world.banner = { text: 'EMP: AIM AT A CAMERA OR LASER', t: 1.2 };
       return false;
     }
-    cam.disabled = 9;
-    cam.aware = 0;
+    if (cam) {
+      cam.disabled = 9;
+      cam.aware = 0;
+    }
+    if (laser) laser.disabled = 9;
     world.sfx.push('emp');
   } else if (id === 'smoke') {
     world.smokes.push({ x: at.x, y: at.y, r: 1.8, t: 7 });

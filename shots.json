@@ -1,6 +1,6 @@
 [
   { "name": "1-cover-gallery-heist.jpg", "query": "?shot=cover" },
-  { "name": "2-bank-lockdown.jpg", "query": "?shot=alarm" },
+  { "name": "2-penthouse-lockdown.jpg", "query": "?shot=alarm" },
   { "name": "3-plan-entry-and-tools.jpg", "query": "?shot=plan" },
   { "name": "4-getaway-payout.jpg", "query": "?shot=getaway" }
 ]

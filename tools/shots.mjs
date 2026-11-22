@@ -137,6 +137,10 @@ async function playtest(cdp, url) {
   await wait(6000);
   console.log('after 6 s idle', await state());
   const run = async (js) => (await cdp.send('Runtime.evaluate', { expression: js }, s)).result.result?.value;
+  // Step into a live laser: the alarm must jump.
+  await run('(() => { const w = window.__nightplan.world; w.lasers[0].clock = 0; w.thief.x = 24.5; w.thief.y = 3.5; })()');
+  await wait(300);
+  console.log('after stepping into a live laser', await state());
   // Crack the target: stand beside it and hold E.
   await run('(() => { const w = window.__nightplan.world; w.guards.forEach(g => { g.x = 2.5; g.y = 15.5; g.route = [{x: 2.5, y: 15.5}]; g.path = []; }); w.thief.x = w.map.target.x - 0.6; w.thief.y = w.map.target.y; })()');
   await key('KeyE', 4200);

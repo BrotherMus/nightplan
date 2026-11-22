@@ -46,28 +46,32 @@ function stageCover(app) {
 }
 
 function stageAlarm(app) {
-  const world = createHeist(1, { entry: 3, kit: { coin: 1, smoke: 1, emp: 1 }, spent: 560 });
+  const world = createHeist(2, { entry: 3, kit: { coin: 1, smoke: 1, emp: 1 }, spent: 560 });
   const map = world.map;
   map.target.taken = true;
   world.thief.carrying = true;
-  world.thief.x = 12.6;
-  world.thief.y = 12.5;
-  world.thief.facing = Math.PI * 0.95;
-  world.thief.trail = routeThrough(map, [map.entries[3], { x: 24.5, y: 6.5 }, { x: 19.5, y: 12.5 }, { x: 27.5, y: 11.5 }, { x: 12.6, y: 12.5 }]);
-  pose(world, 'PIM', 5.5, 13.5, -0.25, 'alert', 1);
-  pose(world, 'RUDD', 20.5, 12.5, Math.PI, 'alert', 1);
-  pose(world, 'SOLVEIG', 12.5, 7.5, 1.45, 'alert', 1);
-  pose(world, 'ODA', 15.5, 3.5, 1.9, 'search', 0.6);
-  world.smokes.push({ x: 16.6, y: 12.4, r: 1.8, t: 5 });
-  world.cameras[1].disabled = 6.2;
+  world.thief.x = 12.4;
+  world.thief.y = 7.6;
+  world.thief.facing = Math.PI;
+  world.thief.trail = routeThrough(map, [map.entries[3], { x: 26.5, y: 9.5 }, { x: 26.5, y: 11.5 }, map.target, { x: 26.5, y: 11.5 }, { x: 12.4, y: 7.6 }]);
+  pose(world, 'KESTREL', 19.5, 7.5, Math.PI, 'alert', 1);
+  pose(world, 'WREN', 26.5, 9.5, Math.PI * 0.97, 'alert', 1);
+  pose(world, 'ODILE', 4.5, 12.5, -1.3, 'suspicious', 0.5);
+  pose(world, 'BRANNOCK', 11.5, 3.5, 1.7, 'search', 0.6);
+  world.smokes.push({ x: 16.4, y: 7.8, r: 1.8, t: 5 });
+  world.lasers[0].clock = 1.0;
+  world.lasers[1].disabled = 5.2;
+  world.lasers[2].clock = 3.0;
+  world.lasers[3].clock = 0.5;
   world.cameras[0].angle = Math.PI / 2 + 0.5;
-  world.cameras[2].angle = Math.PI / 2 - 0.4;
+  world.cameras[1].angle = Math.PI / 2 - 0.7;
+  world.cameras[2].angle = (Math.PI * 3) / 4 - 0.3;
   world.alarm = 100;
-  world.lockdown = 14.2;
-  world.take = 3750;
+  world.lockdown = 11.4;
+  world.take = 5350;
   world.cashTaken = 150;
-  world.alarmsRaised = 2;
-  world.time = 131;
+  world.alarmsRaised = 3;
+  world.time = 162;
   world.kit.smoke = 0;
   world.kit.emp = 0;
   world.banner = { text: 'LOCKDOWN: REACH THE VAN', t: 2, danger: true };
@@ -78,7 +82,7 @@ function stageAlarm(app) {
 }
 
 function stagePlan(app) {
-  app.plan = { levelIndex: 0, entry: 2, kit: { coin: 3, smoke: 1, emp: 1 } };
+  app.plan = { levelIndex: 2, entry: 3, kit: { coin: 3, smoke: 1, emp: 1 } };
   app.screen = 'plan';
 }
 

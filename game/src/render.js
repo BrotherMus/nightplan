@@ -4,6 +4,7 @@ import { tileAt } from './map.js';
 import { castCone } from './vision.js';
 import { toolById, throwTarget } from './tools.js';
 import { nearbyJob } from './heist.js';
+import { laserLive, laserTimeLeft } from './lasers.js';
 
 export const sx = (x) => x * TILE;
 export const sy = (y) => HUD_H + y * TILE;
@@ -279,6 +280,56 @@ export function drawCones(ctx, world) {
   });
 }
 
+// Tripwires: a bright magenta beam while live, a faint dotted line in its dark gap,
+// and a ring on each emitter counting down to the next switch.
+export function drawLasers(ctx, lasers) {
+  lasers.forEach((l) => {
+    const live = laserLive(l);
+    const x1 = sx(l.x1);
+    const y1 = sy(l.y1);
+    const x2 = sx(l.x2);
+    const y2 = sy(l.y2);
+    ctx.save();
+    if (live) {
+      ctx.strokeStyle = 'rgba(255,43,214,0.35)';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.strokeStyle = INK.laser;
+      ctx.lineWidth = 2.5;
+    } else {
+      ctx.strokeStyle = l.disabled > 0 ? 'rgba(111,240,208,0.6)' : 'rgba(255,43,214,0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 7]);
+    }
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    [[x1, y1], [x2, y2]].forEach(([x, y]) => {
+      ctx.fillStyle = l.disabled > 0 ? INK.vent : INK.laser;
+      ctx.fillRect(x - 5, y - 5, 10, 10);
+    });
+    const cycle = l.disabled > 0 ? l.disabled / 9 : laserTimeLeft(l) / (live ? l.on : l.off);
+    ctx.strokeStyle = l.disabled > 0 ? INK.vent : INK.laser;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x1, y1, 11, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * cycle);
+    ctx.stroke();
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const label = l.disabled > 0 ? `EMP ${Math.ceil(l.disabled)}s` : live ? `LASER ${laserTimeLeft(l).toFixed(1)}s` : `GAP ${laserTimeLeft(l).toFixed(1)}s`;
+    const horizontal = Math.abs(l.x2 - l.x1) > Math.abs(l.y2 - l.y1);
+    ctx.fillText(label, horizontal ? (x1 + x2) / 2 : x1 + 34, horizontal ? y1 - 12 : (y1 + y2) / 2);
+    ctx.restore();
+  });
+}
+
 export function drawEffects(ctx, world) {
   world.smokes.forEach((s) => {
     const a = Math.min(1, s.t / 1.5);
@@ -350,6 +401,18 @@ export function drawGuards(ctx, world, t) {
     ctx.arc(x + Math.cos(g.facing) * 9, y + Math.sin(g.facing) * 9, 5, 0, Math.PI * 2);
     ctx.fill();
     awarenessArc(ctx, x, y, 19, g.aware, g.aware >= 1 ? INK.alarm : INK.loot);
+    if (g.sees) {
+      // The sight line: while a guard is noticing you, you can see exactly who and from where.
+      ctx.save();
+      ctx.strokeStyle = g.aware >= 1 ? INK.alarm : INK.loot;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(sx(world.thief.x), sy(world.thief.y));
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.font = 'bold 11px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,180,180,0.9)';
@@ -485,7 +548,7 @@ export function drawCallouts(ctx, world) {
     cam.disabled > 0 ? 'CAMERA: EMP BLIND' : 'CAMERA SWEEP', INK.cameraCone);
   const tg = world.map.target;
   if (tg && !tg.taken) {
-    callout(ctx, sx(tg.x), sy(tg.y) + 16, clampX(sx(tg.x) - 40), clampY(sy(tg.y) + 56),
+    callout(ctx, sx(tg.x), sy(tg.y) + 16, clampX(sx(tg.x) - 40), clampY(sy(tg.y) + 100),
       `LOOT: ${world.level.target} $${world.level.targetValue.toLocaleString('en-US')}`, INK.loot);
   }
   const ex = world.map.exit;
@@ -521,6 +584,7 @@ export function drawHeist(ctx, world, t, aim, toolId) {
   if (world.showNotes) drawPatrolRoutes(ctx, world.guards);
   drawExitAndEntries(ctx, world.map, world.level, world.entry);
   drawCones(ctx, world);
+  drawLasers(ctx, world.lasers);
   drawLoot(ctx, world.map, t);
   drawEffects(ctx, world);
   drawCameras(ctx, world);
