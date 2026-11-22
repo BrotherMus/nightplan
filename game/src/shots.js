@@ -1,7 +1,7 @@
 // Staged moments for screenshots (?shot=cover|alarm|plan|getaway): real game state, posed by hand.
-import { createHeist, scoreHeist } from './heist.js';
+import { createHeist, scoreHeist, updateHeist } from './heist.js';
 import { findPath } from './pathfind.js';
-import { thiefCanEnter } from './map.js';
+import { thiefCanEnter, unlockDoor } from './map.js';
 
 function pose(world, name, x, y, facing, state, aware) {
   const g = world.guards.find((q) => q.name === name);
@@ -86,24 +86,68 @@ function stagePlan(app) {
   app.screen = 'plan';
 }
 
+// A real catch, simulated frame by frame: the thief freezes in the long hall's light as KESTREL walks
+// the patrol toward them, so his awareness climbs through ? and ! before he closes in.
+function stageCaught(app) {
+  const world = createHeist(2, { entry: 1, kit: { coin: 2, smoke: 0, emp: 1 }, spent: 340 });
+  world.time = 71;
+  world.alarm = 18;
+  world.map.target.taken = false;
+  world.thief.x = 11.6;
+  world.thief.y = 8.4;
+  world.thief.trail = routeThrough(world.map, [world.map.entries[1], { x: 3.5, y: 6.5 }, { x: 11.6, y: 8.4 }]);
+  const k = pose(world, 'KESTREL', 19.5, 7.5, Math.PI, 'patrol', 0);
+  k.waypoint = 3; // next stop: the west end of the hall
+  k.path = null;
+  pose(world, 'BRANNOCK', 12.5, 3.5, 0, 'patrol', 0);
+  pose(world, 'ODILE', 6.5, 13.5, 0, 'patrol', 0);
+  world.log = [];
+  for (let i = 0; i < 900 && !world.caughtBy; i++) {
+    const walking = i < 30;
+    updateHeist(world, { dir: { x: walking ? 1 : 0, y: 0 }, sprint: false, interact: false }, 1 / 60);
+  }
+  world.banner = null;
+  app.world = world;
+  app.tool = 'coin';
+  app.aim = null;
+  app.screen = 'caught';
+}
+
+// Copperline, played through: in by the coal chute, EMP on the strongroom camera, lock picked,
+// bonds cracked, out through the laser gap and the vent, two cash bundles, then the van.
 function stageGetaway(app) {
-  const world = createHeist(0, { entry: 1, kit: { coin: 1, smoke: 0, emp: 1 }, spent: 560 });
+  const world = createHeist(1, { entry: 3, kit: { coin: 1, smoke: 0, emp: 1 }, spent: 300 });
   const map = world.map;
-  world.thief.trail = routeThrough(map, [map.entries[1], { x: 3.5, y: 7.5 }, { x: 11.5, y: 10.5 }, { x: 11.5, y: 12.5 },
-    { x: 27.5, y: 12.5 }, { x: 27.5, y: 7.5 }, map.target, { x: 29.5, y: 9.5 }, { x: 27.5, y: 13.5 }, map.exit]);
+  unlockDoor(map, 26.5, 8.5);
+  world.thief.trail = routeThrough(map, [map.entries[3], { x: 26.5, y: 7.5 }, { x: 26.5, y: 9.5 }, map.target,
+    { x: 22.5, y: 12.5 }, { x: 18.5, y: 12.5 }, { x: 11.5, y: 13.5 }, { x: 3.5, y: 10.5 }, { x: 3.5, y: 7.5 },
+    { x: 3.5, y: 10.5 }, map.exit]);
+  world.log = [
+    { t: 6, kind: 'emp', text: 'EMP TAG ON THE STRONGROOM CAMERA', x: 24.5, y: 9.15 },
+    { t: 14, kind: 'pick', text: 'PICKED THE LOCK', x: 26.5, y: 8.5 },
+    { t: 31, kind: 'crack', text: `CRACKED ${world.level.target}`, x: map.target.x, y: map.target.y },
+    { t: 38, kind: 'laser', text: 'SLIPPED THE LASER GAP', x: 21.5, y: 12.5 },
+    { t: 41, kind: 'vent', text: 'INTO THE VENT', x: 19.5, y: 12.5 },
+    { t: 55, kind: 'coin', text: 'RATTLE COIN TURNED PIM', x: 15.5, y: 10.5 },
+    { t: 62, kind: 'grab', text: 'BAGGED $150', x: 11.5, y: 13.5 },
+    { t: 79, kind: 'grab', text: 'BAGGED $150', x: 3.5, y: 7.5 },
+    { t: 94, kind: 'van', text: 'IN THE VAN', x: map.exit.x + 0.4, y: map.exit.y },
+  ];
   map.target.taken = true;
-  map.cash[0].taken = true;
+  map.cash[1].taken = true;
   map.cash[2].taken = true;
+  world.kit = { coin: 0, smoke: 0, emp: 0 };
+  world.toolsUsed = 2;
   world.cashTaken = 300;
   world.take = world.level.targetValue + 300;
-  world.time = 124;
+  world.time = 94;
   world.escaped = true;
   app.world = world;
   app.score = scoreHeist(world);
   app.screen = 'results';
 }
 
-export const SHOTS = { cover: stageCover, alarm: stageAlarm, plan: stagePlan, getaway: stageGetaway };
+export const SHOTS = { cover: stageCover, alarm: stageAlarm, caught: stageCaught, plan: stagePlan, getaway: stageGetaway };
 
 export function stageShot(app, name) {
   const stage = SHOTS[name];

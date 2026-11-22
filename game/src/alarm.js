@@ -1,11 +1,13 @@
 // The alarm meter: spotted moments push it up, quiet time lets it settle, 100 starts a lockdown.
 import { LOCKDOWN_SECONDS } from './config.js';
 import { sendGuard } from './guards.js';
+import { logEvent } from './heistlog.js';
 
 export function raiseAlarm(world, amount, reason) {
   world.alarm = Math.min(100, world.alarm + amount);
   world.alarmsRaised += 1;
   world.banner = { text: reason, t: 2.2, danger: true };
+  logEvent(world, 'alarm', reason);
 }
 
 export function updateAlarm(world, dt) {

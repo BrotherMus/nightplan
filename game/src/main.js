@@ -143,7 +143,7 @@ bindInput(canvas);
 window.__nightplan = app; // read by tools/shots.mjs --playtest
 const shot = new URLSearchParams(location.search).get('shot');
 if (shot && stageShot(app, shot)) {
-  app.t = 1.2;
+  app.t = 0.3; // a moment when the blinking prompts are lit
   draw();
   window.__shotReady = true;
 } else {

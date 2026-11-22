@@ -8,6 +8,7 @@ import { createCamera, updateCamera } from './cameras.js';
 import { updateAlarm } from './alarm.js';
 import { makeNoise, updateEffects } from './tools.js';
 import { createLaser, updateLaser } from './lasers.js';
+import { logEvent } from './heistlog.js';
 
 export function createHeist(levelIndex, plan) {
   const level = LEVELS[levelIndex];
@@ -23,7 +24,7 @@ export function createHeist(levelIndex, plan) {
     alarm: 0, alarmFloor: 0, lockdown: 0, radioTimer: 0, alarmPressure: false,
     smokes: [], noises: [], sfx: [], banner: { text: `ENTER BY THE ${level.entries[plan.entry]}`, t: 2.5 },
     take: 0, cashTaken: 0, time: 0, hold: null, caughtBy: null, escaped: false,
-    alarmsRaised: 0, toolsUsed: 0, showNotes: true,
+    alarmsRaised: 0, toolsUsed: 0, showNotes: true, log: [], dt: 0, bought: { ...plan.kit },
   };
 }
 
@@ -66,16 +67,19 @@ function workOnJob(world, holding, dt) {
   if (h.progress < h.time) return;
   if (h.kind === 'pick') {
     unlockDoor(world.map, h.x, h.y);
+    logEvent(world, 'pick', 'PICKED THE LOCK', h.x, h.y);
     world.banner = { text: 'LOCK OPEN', t: 1.2 };
   } else if (h.kind === 'crack') {
     world.map.target.taken = true;
     world.thief.carrying = true;
     world.take += world.level.targetValue;
+    logEvent(world, 'crack', `CRACKED ${world.level.target}`, h.x, h.y);
     world.banner = { text: `${world.level.target} BAGGED: GET TO THE VAN`, t: 2.5 };
   } else {
     h.cash.taken = true;
     world.take += h.cash.value;
     world.cashTaken += h.cash.value;
+    logEvent(world, 'grab', `BAGGED $${h.cash.value}`, h.x, h.y);
   }
   world.sfx.push('loot');
   world.hold = null;
@@ -84,10 +88,13 @@ function workOnJob(world, holding, dt) {
 export function updateHeist(world, input, dt) {
   if (world.caughtBy || world.escaped) return;
   world.time += dt;
+  world.dt = dt;
+  const wasInVent = world.thief.inVent;
   world.alarmPressure = false;
   const holding = input.interact;
   const noise = holding && world.hold ? 0 : moveThief(world.thief, world.map, holding ? { x: 0, y: 0 } : input.dir, input.sprint, dt);
   if (noise > 0) makeNoise(world, world.thief.x, world.thief.y, noise, world.thief.sprinting ? 'sprint' : 'step');
+  if (world.thief.inVent && !wasInVent) logEvent(world, 'vent', 'INTO THE VENT');
   workOnJob(world, holding, dt);
   world.guards.forEach((g) => updateGuard(g, world, dt));
   world.cameras.forEach((c) => updateCamera(c, world, dt));
@@ -102,6 +109,7 @@ export function updateHeist(world, input, dt) {
   if (Math.hypot(exit.x - world.thief.x, exit.y - world.thief.y) < 0.9) {
     if (world.thief.carrying) {
       world.escaped = true;
+      logEvent(world, 'van', 'IN THE VAN');
       world.sfx.push('escape');
     } else if (!world.banner) {
       world.banner = { text: 'THE VAN WAITS FOR THE TARGET', t: 1.5 };

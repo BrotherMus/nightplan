@@ -2,6 +2,7 @@
 import { TOOLS } from './config.js';
 import { hearNoise } from './guards.js';
 import { distanceToBeam } from './lasers.js';
+import { logEvent } from './heistlog.js';
 
 export const THROW_RANGE = 7;
 
@@ -51,6 +52,7 @@ export function useTool(world, id, aim) {
   }
   world.kit[id] -= 1;
   world.toolsUsed += 1;
+  logEvent(world, id, `${toolById(id).name} USED`, at.x, at.y);
   return true;
 }
 

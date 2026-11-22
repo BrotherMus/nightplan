@@ -1,6 +1,7 @@
 // Laser tripwires: beams that cycle on and off. Cross in the dark gap, or EMP the emitter.
 import { raiseAlarm } from './alarm.js';
 import { sendGuard } from './guards.js';
+import { logEvent } from './heistlog.js';
 
 export function createLaser(def) {
   return { ...def, clock: def.offset || 0, disabled: 0, cooldown: 0 };
@@ -32,6 +33,9 @@ export function updateLaser(laser, world, dt) {
     return;
   }
   const { thief } = world;
+  const near = distanceToBeam(laser, thief.x, thief.y) < 0.6;
+  if (near && !laser.thiefNear && !laserLive(laser) && !thief.inVent) logEvent(world, 'laser', 'SLIPPED THE LASER GAP');
+  laser.thiefNear = near;
   if (!laserLive(laser) || thief.inVent || laser.cooldown > 0) return;
   if (distanceToBeam(laser, thief.x, thief.y) > 0.3) return;
   laser.cooldown = 2.5;

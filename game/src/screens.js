@@ -5,6 +5,8 @@ import { parseFloorPlan } from './map.js';
 import { createGuard } from './guards.js';
 import { drawPaper, drawFloorPlan, drawRoomLabels, drawPatrolRoutes, drawExitAndEntries, drawLoot, drawLasers, drawTrail, sx, sy } from './render.js';
 import { createLaser } from './lasers.js';
+import { explainCatch } from './catchreport.js';
+import { eventColor, clock } from './heistlog.js';
 
 const money = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US')}`;
 
@@ -146,63 +148,188 @@ export function drawPlan(ctx, plan, t) {
   text(ctx, 'START THE JOB  [ENTER]', 1060, 671, 22, INK.safe);
 }
 
+function wrapLines(ctx, str, width, size) {
+  ctx.font = `bold ${size}px "Courier New", monospace`;
+  const out = [''];
+  str.split(' ').forEach((w) => {
+    const next = out[out.length - 1] ? `${out[out.length - 1]} ${w}` : w;
+    if (ctx.measureText(next).width > width && out[out.length - 1]) out.push(w);
+    else out[out.length - 1] = next;
+  });
+  return out;
+}
+
+// The guard's awareness over the last six seconds: shaded where it could see you, with the ? and ! lines.
+function drawAwarenessGraph(ctx, report, x, y, w, h) {
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = INK.dim;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, w, h);
+  const px = (tt) => x + ((tt - report.start) / (report.end - report.start)) * w;
+  const py = (a) => y + h - a * (h - 10);
+  report.samples.forEach((s) => {
+    if (!s.sees) return;
+    ctx.fillStyle = 'rgba(255,64,64,0.22)';
+    ctx.fillRect(px(s.t), y, w / 60 + 1, h);
+  });
+  [[0.35, '?', INK.loot], [1, '!', INK.alarm]].forEach(([a, mark, c]) => {
+    ctx.strokeStyle = c;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, py(a));
+    ctx.lineTo(x + w, py(a));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    text(ctx, mark, x - 12, py(a), 16, c);
+  });
+  ctx.strokeStyle = INK.text;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  report.samples.forEach((s, i) => (i ? ctx.lineTo(px(s.t), py(s.aware)) : ctx.moveTo(px(s.t), py(s.aware))));
+  ctx.stroke();
+  text(ctx, '-6 s', x, y + h + 14, 11, INK.dim, 'left', 'normal');
+  text(ctx, 'CAUGHT', x + w, y + h + 14, 11, INK.alarm, 'right');
+  text(ctx, 'RED = IN HIS CONE', x + w / 2, y + h + 14, 11, INK.guardCone, 'center', 'normal');
+}
+
+// The caught page: the frozen frame stays visible, with the evidence that the catch was fair.
 export function drawCaught(ctx, world, t) {
   const by = world.caughtBy;
-  ctx.fillStyle = 'rgba(40,0,10,0.55)';
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  const report = explainCatch(world);
+  ctx.fillStyle = 'rgba(60,0,15,0.28)';
+  ctx.fillRect(0, HUD_H, VIEW_W, VIEW_H - HUD_H);
+  const th = world.thief;
   if (!by.police) {
     ctx.strokeStyle = INK.alarm;
     ctx.lineWidth = 3;
     ctx.setLineDash([10, 6]);
     ctx.beginPath();
     ctx.moveTo(sx(by.x), sy(by.y));
-    ctx.lineTo(sx(world.thief.x), sy(world.thief.y));
+    ctx.lineTo(sx(th.x), sy(th.y));
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(sx(by.x), sy(by.y), 24 + Math.sin(t * 6) * 3, 0, Math.PI * 2);
+    ctx.stroke();
   }
-  panel(ctx, 300, 230, 680, 320, INK.alarm);
-  text(ctx, 'CAUGHT', VIEW_W / 2, 300, 84, INK.alarm);
-  const why = by.police
-    ? 'THE LOCKDOWN RAN OUT BEFORE YOU REACHED THE VAN'
-    : `${by.name} HELD YOU IN SIGHT ${world.thief.inShadow ? 'AT ARM\'S LENGTH' : 'IN THE LIGHT'} AND CLOSED IN`;
-  text(ctx, why, VIEW_W / 2, 380, 18, INK.text);
-  text(ctx, `ALARM ${Math.round(world.alarm)}% · TIME ${Math.floor(world.time)}s · TAKE LOST ${money(world.take)}`, VIEW_W / 2, 420, 16, INK.dim);
-  if (Math.sin(t * 4) > -0.3) text(ctx, 'ENTER: TRY THE SAME PLAN    R: REDRAW THE PLAN', VIEW_W / 2, 496, 20, INK.safe);
+  if (report.shade && report.shade.d < 5) {
+    ctx.strokeStyle = INK.safe;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(sx(th.x), sy(th.y));
+    ctx.lineTo(sx(report.shade.x), sy(report.shade.y));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeRect(sx(report.shade.x) - 20, sy(report.shade.y) - 20, 40, 40);
+    text(ctx, 'HIDE HERE', sx(report.shade.x), sy(report.shade.y) - 30, 13, INK.safe);
+  }
+  const left = 852;
+  const right = 1244;
+  const mid = (left + right) / 2;
+  panel(ctx, left - 22, HUD_H + 10, right - left + 44, VIEW_H - HUD_H - 20, INK.alarm);
+  text(ctx, 'CAUGHT', mid, 128, 66, INK.alarm);
+  text(ctx, by.police ? 'BY THE POLICE · THE CLOCK RAN OUT' : `BY ${by.name} · A FAIR CALL`, mid, 176, 17, INK.text);
+  report.lines.forEach((line, i) => {
+    const y = 222 + i * 34;
+    text(ctx, '✓', left, y, 18, INK.safe, 'left');
+    text(ctx, line, left + 24, y, 14, INK.text, 'left');
+  });
+  if (!report.police) {
+    text(ctx, 'HIS AWARENESS, LAST 6 SECONDS', left, 336, 13, INK.dim, 'left');
+    drawAwarenessGraph(ctx, report, left + 16, 352, right - left - 16, 130);
+  }
+  text(ctx, 'WHAT WOULD HAVE WORKED', left, 532, 13, INK.dim, 'left');
+  wrapLines(ctx, report.tip, right - left, 16).forEach((line, i) => text(ctx, line, left, 560 + i * 24, 16, INK.safe, 'left'));
+  text(ctx, `ALARM ${Math.round(world.alarm)}% · ${clock(world.time)} IN · ${money(world.take)} DROPPED`, mid, 636, 14, INK.dim);
+  if (Math.sin(t * 4) > -0.3) {
+    text(ctx, 'ENTER: TRY THE SAME PLAN', mid, 682, 18, INK.text);
+    text(ctx, 'R: REDRAW THE PLAN', mid, 712, 15, INK.dim);
+  }
 }
 
+// Numbered pins on the plans, one per logged moment of the night.
+function drawEventPins(ctx, log) {
+  log.forEach((e, i) => {
+    ctx.fillStyle = INK.paperDeep;
+    ctx.strokeStyle = eventColor(e.kind);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(sx(e.x), sy(e.y), 17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    text(ctx, String(i + 1), sx(e.x), sy(e.y) + 1, 18, eventColor(e.kind));
+  });
+}
+
+// The getaway sheet: the whole floor with the route and every moment pinned on it, the payout,
+// and the plan checked against how the night went.
 export function drawResults(ctx, world, score, t) {
   drawPaper(ctx);
+  const log = world.log || [];
+  ctx.save();
+  ctx.translate(14, 78);
+  ctx.scale(0.62, 0.62);
+  ctx.translate(0, -HUD_H);
   drawFloorPlan(ctx, world.map);
   drawRoomLabels(ctx, world.level);
+  drawLasers(ctx, world.lasers);
   drawExitAndEntries(ctx, world.map, world.level, world.entry);
-  drawTrail(ctx, world.thief.trail);
-  text(ctx, 'YOUR ROUTE', sx(world.thief.trail[0].x) + 70, sy(world.thief.trail[0].y), 14, INK.loot);
-  ctx.fillStyle = 'rgba(7,26,51,0.3)';
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  drawTrail(ctx, world.thief.trail);
-  text(ctx, 'THE ROUTE YOU TOOK, DRAWN ON THE PLANS', 14, 32, 20, INK.loot, 'left');
-  const left = 800;
-  const right = 1250;
+  drawLoot(ctx, world.map, t);
+  drawTrail(ctx, world.thief.trail, INK.loot, 6);
+  drawEventPins(ctx, log);
+  ctx.restore();
+  text(ctx, 'THE ROUTE YOU TOOK, EVERY MOMENT PINNED ON THE PLANS', 14, 36, 20, INK.loot, 'left');
+  text(ctx, `${world.level.sheet} · ${world.level.site}`, 14, 60, 14, INK.dim, 'left');
+
+  text(ctx, 'THE NIGHT, PIN BY PIN', 14, 524, 14, INK.dim, 'left');
+  log.slice(0, 16).forEach((e, i) => {
+    const x = 14 + Math.floor(i / 8) * 400;
+    const y = 552 + (i % 8) * 27;
+    text(ctx, String(i + 1).padStart(2, ' '), x + 10, y, 15, eventColor(e.kind));
+    text(ctx, clock(e.t), x + 34, y, 14, INK.dim, 'left', 'normal');
+    text(ctx, e.text, x + 90, y, 14, e.kind === 'alarm' ? INK.alarm : INK.text, 'left');
+  });
+
+  const left = 852;
+  const right = 1244;
   const mid = (left + right) / 2;
-  panel(ctx, left - 20, 84, right - left + 40, 640, INK.safe);
-  text(ctx, score.ghost ? 'CLEAN GETAWAY' : 'GETAWAY', mid, 136, 44, INK.safe);
-  text(ctx, `${world.level.site} · ${Math.floor(world.time)}s`, mid, 180, 15, INK.dim);
+  panel(ctx, left - 22, 20, right - left + 44, 760, INK.safe);
+  text(ctx, score.ghost ? 'CLEAN GETAWAY' : 'GETAWAY', mid, 66, 40, INK.safe);
+  text(ctx, `${world.level.target} IS IN THE VAN`, mid, 104, 13, INK.dim);
   score.lines.forEach((l, i) => {
-    const y = 236 + i * 46;
-    text(ctx, l.label, left, y, 16, INK.text, 'left');
-    text(ctx, money(l.value), right, y, 20, l.value < 0 ? INK.alarm : INK.loot, 'right');
+    const y = 146 + i * 36;
+    text(ctx, l.label, left, y, 15, INK.text, 'left');
+    text(ctx, money(l.value), right, y, 19, l.value < 0 ? INK.alarm : INK.loot, 'right');
   });
   ctx.strokeStyle = INK.wall;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(left, 476);
-  ctx.lineTo(right, 476);
+  ctx.moveTo(left, 328);
+  ctx.lineTo(right, 328);
   ctx.stroke();
-  text(ctx, 'CREW TAKE', left, 520, 24, INK.text, 'left');
-  text(ctx, money(score.total), right, 520, 34, INK.loot, 'right');
-  text(ctx, `${'★'.repeat(score.stars)}${'☆'.repeat(3 - score.stars)}`, mid, 590, 48, INK.loot);
+  text(ctx, 'CREW TAKE', left, 362, 22, INK.text, 'left');
+  text(ctx, money(score.total), right, 362, 32, INK.loot, 'right');
+  text(ctx, `${'★'.repeat(score.stars)}${'☆'.repeat(3 - score.stars)}`, mid, 414, 44, INK.loot);
+
+  text(ctx, 'THE PLAN, CHECKED', left, 470, 13, INK.dim, 'left');
+  const bought = Object.values(world.bought || {}).reduce((s, n) => s + n, 0);
+  const checks = [
+    [`ENTRY: ${world.level.entries[world.entry]}`, true],
+    [`TOOLS: BOUGHT ${bought} · USED ${world.toolsUsed}`, world.toolsUsed >= bought],
+    [score.ghost ? 'ALARMS: NONE, A GHOST RUN' : `ALARMS: ${world.alarmsRaised}`, score.ghost],
+    [`TIME ${clock(world.time)} · PAR ${clock(world.level.par)}`, world.time <= world.level.par],
+    [`CASH BUNDLES: ${world.map.cash.filter((c) => c.taken).length} OF ${world.map.cash.length}`, world.cashTaken >= 300],
+  ];
+  checks.forEach(([label, ok], i) => {
+    const y = 504 + i * 34;
+    text(ctx, ok ? '✓' : '✗', left, y, 18, ok ? INK.safe : INK.alarm, 'left');
+    text(ctx, label, left + 26, y, 14, INK.text, 'left');
+  });
   if (Math.sin(t * 4) > -0.3) {
     const last = world.levelIndex >= LEVELS.length - 1;
-    text(ctx, last ? 'ENTER: CLOSE THE BOOKS' : 'ENTER: PLAN THE NEXT JOB', mid, 670, 18, INK.safe);
+    text(ctx, last ? 'ENTER: CLOSE THE BOOKS' : 'ENTER: PLAN THE NEXT JOB', mid, 732, 18, INK.safe);
   }
 }
 

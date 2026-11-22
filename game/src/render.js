@@ -5,6 +5,7 @@ import { castCone } from './vision.js';
 import { toolById, throwTarget } from './tools.js';
 import { nearbyJob } from './heist.js';
 import { laserLive, laserTimeLeft } from './lasers.js';
+import { planRoutes } from './routes.js';
 
 export const sx = (x) => x * TILE;
 export const sy = (y) => HUD_H + y * TILE;
@@ -565,15 +566,41 @@ export function drawLockdownTint(ctx, world, t) {
   ctx.fillRect(0, HUD_H, VIEW_W, VIEW_H - HUD_H);
 }
 
-export function drawTrail(ctx, trail, color = INK.loot) {
+export function drawTrail(ctx, trail, color = INK.loot, width = 3) {
   ctx.save();
   ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = width;
   ctx.setLineDash([8, 5]);
   ctx.beginPath();
   trail.forEach((p, i) => (i ? ctx.lineTo(sx(p.x), sy(p.y)) : ctx.moveTo(sx(p.x), sy(p.y))));
   ctx.stroke();
   ctx.restore();
+}
+
+// Planner's notes: the two ways from the thief to the target (or the van), each tagged at its far end.
+export function drawPlannedRoutes(ctx, world) {
+  planRoutes(world).forEach((r, i) => {
+    ctx.save();
+    ctx.strokeStyle = r.color;
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([3, 7]);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(sx(world.thief.x), sy(world.thief.y));
+    r.path.forEach((p) => ctx.lineTo(sx(p.x) + (i ? 5 : -5), sy(p.y) + (i ? 5 : -5)));
+    ctx.stroke();
+    ctx.restore();
+    const tag = r.path[Math.floor(r.path.length * (i ? 0.62 : 0.12))];
+    ctx.font = 'bold 12px "Courier New", monospace';
+    const w = ctx.measureText(`ROUTE ${r.name}`).width + 12;
+    ctx.fillStyle = 'rgba(7,26,51,0.9)';
+    ctx.fillRect(sx(tag.x) - w / 2, sy(tag.y) - 9 + (i ? 14 : -14), w, 18);
+    ctx.fillStyle = r.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`ROUTE ${r.name}`, sx(tag.x), sy(tag.y) + (i ? 14 : -14));
+  });
 }
 
 // The whole heist frame, back to front.
@@ -582,6 +609,7 @@ export function drawHeist(ctx, world, t, aim, toolId) {
   drawFloorPlan(ctx, world.map);
   drawRoomLabels(ctx, world.level);
   if (world.showNotes) drawPatrolRoutes(ctx, world.guards);
+  if (world.showNotes && !world.caughtBy) drawPlannedRoutes(ctx, world);
   drawExitAndEntries(ctx, world.map, world.level, world.entry);
   drawCones(ctx, world);
   drawLasers(ctx, world.lasers);

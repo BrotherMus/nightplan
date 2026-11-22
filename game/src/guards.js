@@ -4,6 +4,7 @@ import { guardCanEnter } from './map.js';
 import { findPath } from './pathfind.js';
 import { seesPoint, angleDiff } from './vision.js';
 import { raiseAlarm } from './alarm.js';
+import { recordWatch } from './catchreport.js';
 
 export function createGuard(def) {
   const [sx, sy] = def.route[0];
@@ -11,6 +12,7 @@ export function createGuard(def) {
     name: def.name, x: sx + 0.5, y: sy + 0.5, facing: 0,
     route: def.route.map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 })), waypoint: 0, path: null,
     state: 'patrol', aware: 0, target: null, pause: 0, lookTimer: 0, lostTimer: 0, repath: 0, sees: false,
+    watch: [], watchClock: 0,
   };
 }
 
@@ -85,6 +87,7 @@ export function updateGuard(g, world, dt) {
   } else if (g.state !== 'alert') {
     g.aware = Math.max(0, g.aware - 0.22 * dt);
   }
+  recordWatch(g, world, dist);
 
   if (g.state === 'patrol') {
     if (!g.path || !g.path.length) {
